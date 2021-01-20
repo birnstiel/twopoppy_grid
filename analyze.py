@@ -43,7 +43,7 @@ flux_fraction = ARGS.flux_fraction
 fname = ARGS.file
 
 fname_out = Path(fname)
-fname_out = fname_out.with_name(f'{fname_out.stem }_analysis_lam{1e4 * lam:0.0f}_q{q:.1f}_f{100 * flux_fraction:.0f}').with_suffix(fname_out.suffix)
+fname_out = fname_out.with_name(f'{fname_out.stem }_analysis_lam{1e4 * lam:0.0f}_q{q:.1f}_f{100 * flux_fraction:.0f}{fname_out.suffix}')
 
 # %% -------- open the data file -----------
 
