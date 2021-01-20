@@ -83,7 +83,17 @@ if ARGS.test is not None:
     indices = [ARGS.test]
 
 pool = Pool(processes=ARGS.cores)
-results = pool.map(parallel_analyze, indices)
+
+results = []
+n_sim = len(indices)
+
+for i, res in enumerate(pool.imap_unordered(parallel_analyze, indices)):
+    results.append(res)
+    print(f'\rRunning ... {(i+1) / n_sim:.1%}', end='', flush=True)
+
+print('\r--------- DONE ---------')
+
+
 elapsed_time = walltime.process_time() - start
 print('{} of {} simulations finished in {:.3g} minutes'.format(len(results) - results.count(False), len(results), elapsed_time))
 
