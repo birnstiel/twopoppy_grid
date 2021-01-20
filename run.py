@@ -3,6 +3,7 @@
 
 Executes a large list of parameters and stores the results in an HDF5 file.
 """
+# %% ------------ imports ------------
 import itertools
 import importlib.util
 import sys
@@ -22,7 +23,7 @@ year = dipsy.cgs_constants.year
 M_sun = dipsy.cgs_constants.M_sun
 sigma_sb = dipsy.cgs_constants.sigma_sb
 
-# -------------- argument parsing ------------------
+# %% -------------- argument parsing ------------------
 
 RTHF = argparse.RawTextHelpFormatter
 PARSER = argparse.ArgumentParser(description=__doc__, formatter_class=RTHF)
@@ -31,7 +32,7 @@ PARSER.add_argument('-c', '--cores', help='how many cores to use, overwrites gri
 PARSER.add_argument('-t', '--test', help='for testing: only run this single model', type=int, default=None)
 ARGS = PARSER.parse_args()
 
-# ----------- get the grid parameters --------------
+# %% ----------- get the grid parameters --------------
 
 grid_file = Path(ARGS.grid).resolve()
 
@@ -65,7 +66,7 @@ cores = grid.cores
 if ARGS.cores > 0:
     cores = ARGS.cores
 
-# ----------------- set up parameter list & grids ---------------
+# %% -------------- set up parameter list & grids ---------------
 
 # make a list of all possible combinations
 
@@ -80,7 +81,7 @@ if ARGS.test is not None:
 r = np.logspace(np.log10(r0), np.log10(r1), nr + 1)
 time = np.hstack((0, np.logspace(np.log10(t0), np.log10(t1), nt)))
 
-# ----------------- define worker function ---------------
+# %% -------------- define worker function ---------------
 
 
 def parallel_run(param):
@@ -110,18 +111,28 @@ def parallel_run(param):
 
         return res
     except Exception as err:
+        raise err
         print(err)
         return False
 
-# ----------------- parallel execution ---------------
 
+# %% --------------- parallel execution ---------------
 
 pool = Pool(processes=cores)
-results = pool.map(parallel_run, param_val)
+
+results = []
+n_sim = len(param_val)
+
+for i, res in enumerate(pool.imap_unordered(parallel_run, param_val)):
+    results.append(res)
+    print(f'\rRunning ... {(i+1) / n_sim:.1%}', end='', flush=True)
+
+print('\r--------- DONE ---------')
+
 elapsed_time = walltime.process_time() - start
 print('{} of {} simulations finished in {:.3g} minutes'.format(len(results) - results.count(False), len(results), elapsed_time))
 
-# --------------- output --------------
+# %% ------------ output --------------
 
 # to write to an hdf5 file, we need to put everything simulation result + parameters into one dict
 

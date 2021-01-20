@@ -86,7 +86,9 @@ def run_bump_model2(alpha, M_disk, r_c, v_frag, M_star, r, T, time, r_bumps, a_b
     m.stokesregime = 0
     m.snapshots = time
     m.initialize()
-    m.run()
+
+    with dipsy.utils.Capturing():
+        m.run()
 
     if get_model:
         return m
