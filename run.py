@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Runs a twopoppy simulation grid.
 
 Executes a large list of parameters and stores the results in an HDF5 file.
