@@ -111,7 +111,6 @@ def parallel_run(param):
 
         return res
     except Exception as err:
-        raise err
         print(err)
         return False
 
