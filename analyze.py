@@ -8,7 +8,6 @@ from multiprocessing import Pool
 import time as walltime
 from pathlib import Path
 
-import pandas as pd
 import numpy as np
 import h5py
 
@@ -17,7 +16,7 @@ from model import bumpmodel_result
 
 au = dipsy.cgs_constants.au
 
-start = walltime.process_time()
+start = walltime.time()
 
 # %% -------------- argument parsing ------------------
 
@@ -47,27 +46,28 @@ fname_out = fname_out.with_name(f'{fname_out.stem }_analysis_lam{1e4 * lam:0.0f}
 
 # %% -------- open the data file -----------
 
-fid = h5py.File(fname, 'r')
-
-n_data = len(fid)
+with h5py.File(fname, 'r') as fid:
+    n_data = len(fid)
+    keys = list(fid.keys())
 
 # %% -------- define the worker function -----------
 
 
-def parallel_analyze(i):
+def parallel_analyze(key):
 
-    d = dipsy.utils.read_from_hdf5(fname, f'{i:07d}')
-
-    b = bumpmodel_result(*[d[f] for f in bumpmodel_result._fields])
+    with h5py.File(fname, 'r') as fid:
+        group = fid[key]
+        b = bumpmodel_result(*[group[f][()] for f in bumpmodel_result._fields])
+        params = group['params'][()]
 
     rf_t, flux_t, *_ = dipsy.get_all_observables(b, opac, lam, q=q, flux_fraction=flux_fraction)
 
     out = {
-        'alpha': d['params'][0],
-        'Mdisk': d['params'][1],
-        'r_c': d['params'][2],
-        'v_frag': d['params'][3],
-        'M_star': d['params'][4],
+        'alpha': params[0],
+        'Mdisk': params[1],
+        'r_c': params[2],
+        'v_frag': params[3],
+        'M_star': params[4],
         'rf_t': np.squeeze(rf_t / au).tolist(),
         'flux_t': np.squeeze(flux_t).tolist(),
         'time': b.time
@@ -86,15 +86,16 @@ pool = Pool(processes=ARGS.cores)
 
 results = []
 n_sim = len(indices)
+keys = [keys[i] for i in indices]
 
-for i, res in enumerate(pool.imap_unordered(parallel_analyze, indices)):
+for i, res in enumerate(pool.imap_unordered(parallel_analyze, keys)):
     results.append(res)
     print(f'\rRunning ... {(i+1) / n_sim:.1%}', end='', flush=True)
 
 print('\r--------- DONE ---------')
 
 
-elapsed_time = walltime.process_time() - start
+elapsed_time = (walltime.time() - start) / 60
 print('{} of {} simulations finished in {:.3g} minutes'.format(len(results) - results.count(False), len(results), elapsed_time))
 
 # %% --------------- output --------------
