@@ -12,12 +12,9 @@ from multiprocessing import Pool
 from pathlib import Path
 import argparse
 
-import numpy as np
-
 import dipsy
-from model import run_bump_model2
 
-start = walltime.process_time()
+start = walltime.time()
 
 year = dipsy.cgs_constants.year
 M_sun = dipsy.cgs_constants.M_sun
@@ -46,23 +43,10 @@ grid = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(grid)
 
 param = grid.param
-
-r0 = grid.r0
-r1 = grid.r1
-nr = grid.nr
-
-t0 = grid.t0
-t1 = grid.t1
-nt = grid.nt
-
-r_bumps = grid.r_bumps
-a_bumps = grid.a_bumps
-mass_ratio = grid.mass_ratio
-gap_profile = grid.gap_profile
-
 filename = grid.filename
-
+parallel_run = grid.parallel_run
 cores = grid.cores
+
 if ARGS.cores > 0:
     cores = ARGS.cores
 
@@ -76,44 +60,6 @@ if ARGS.test is not None:
     print(f'TESTING: only running simulation #{ARGS.test}')
     param_val = [param_val[ARGS.test]]
 
-# make the grids
-
-r = np.logspace(np.log10(r0), np.log10(r1), nr + 1)
-time = np.hstack((0, np.logspace(np.log10(t0), np.log10(t1), nt)))
-
-# %% -------------- define worker function ---------------
-
-
-def parallel_run(param):
-
-    try:
-        # Calculate the luminosity of every star depending on the mass
-
-        L, R, Teff = dipsy.get_stellar_properties(param[4] * M_sun, 1e6 * year)
-
-        # set flaring angle
-
-        phi = 0.05
-
-        # calculate the temperature
-
-        Temp = ((phi * L / (4 * np.pi * sigma_sb * r**2)) + 1e4)**0.25
-
-        res = run_bump_model2(
-            *param,
-            r,
-            Temp,
-            time,
-            r_bumps,
-            a_bumps,
-            mass_ratio,
-            gap_profile=gap_profile)
-
-        return res
-    except Exception as err:
-        print(err)
-        return False
-
 
 # %% --------------- parallel execution ---------------
 
@@ -122,14 +68,14 @@ pool = Pool(processes=cores)
 results = []
 n_sim = len(param_val)
 
-for i, res in enumerate(pool.imap_unordered(parallel_run, param_val)):
+for i, res in enumerate(pool.imap(parallel_run, param_val)):
     results.append(res)
     print(f'\rRunning ... {(i+1) / n_sim:.1%}', end='', flush=True)
 
 print('\r--------- DONE ---------')
 
-elapsed_time = walltime.process_time() - start
-print('{} of {} simulations finished in {:.3g} minutes'.format(len(results) - results.count(False), len(results), elapsed_time))
+sims_done = walltime.time()
+print('{} of {} simulations finished in {:.3g} minutes'.format(len(results) - results.count(False), len(results), (sims_done - start) / 60))
 
 # %% ------------ output --------------
 
@@ -144,3 +90,6 @@ for d, params in zip(dicts, param_val):
 # now write to file
 
 dipsy.utils.write_to_hdf5(Path(filename).with_suffix('.hdf5'), dicts)
+
+saving_done = walltime.time()
+print(f'saving done (took {(saving_done - sims_done) / 60:.3g} min)')

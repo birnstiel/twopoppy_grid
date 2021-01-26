@@ -88,18 +88,18 @@ results = []
 n_sim = len(indices)
 keys = [keys[i] for i in indices]
 
-for i, res in enumerate(pool.imap_unordered(parallel_analyze, keys)):
+for i, res in enumerate(pool.imap(parallel_analyze, keys)):
     results.append(res)
     print(f'\rRunning ... {(i+1) / n_sim:.1%}', end='', flush=True)
 
 print('\r--------- DONE ---------')
 
-
-elapsed_time = (walltime.time() - start) / 60
-print('{} of {} simulations finished in {:.3g} minutes'.format(len(results) - results.count(False), len(results), elapsed_time))
+analysis_done = walltime.time()
+print('{} of {} simulations finished in {:.3g} minutes'.format(len(results) - results.count(False), len(results), (analysis_done - start) / 60))
 
 # %% --------------- output --------------
 
 # write to an hdf5 file
 
 df = dipsy.utils.write_to_hdf5(fname_out, results)
+print(f'writing done in {(analysis_done - walltime.time()) / 60:.3g} minutes')
