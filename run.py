@@ -5,7 +5,6 @@ Executes a large list of parameters and stores the results in an HDF5 file.
 """
 # %% ------------ imports ------------
 import itertools
-import importlib.util
 import sys
 import time as walltime
 from multiprocessing import Pool
@@ -38,9 +37,7 @@ if not grid_file.is_file():
     sys.exit(1)
 
 print(f'importing grid from {grid_file}')
-spec = importlib.util.spec_from_file_location(grid_file.name, str(grid_file))
-grid = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(grid)
+grid = __import__(grid_file.stem, globals=globals())
 
 param = grid.param
 filename = grid.filename
