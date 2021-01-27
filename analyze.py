@@ -102,4 +102,4 @@ print('{} of {} simulations finished in {:.3g} minutes'.format(len(results) - re
 # write to an hdf5 file
 
 df = dipsy.utils.write_to_hdf5(fname_out, results)
-print(f'writing done in {(analysis_done - walltime.time()) / 60:.3g} minutes')
+print(f'writing done in {(walltime.time() - analysis_done) / 60:.3g} minutes')
