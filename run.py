@@ -11,6 +11,8 @@ from multiprocessing import Pool
 from pathlib import Path
 import argparse
 
+import h5py
+
 import dipsy
 
 start = walltime.time()
@@ -65,28 +67,12 @@ pool = Pool(processes=cores)
 results = []
 n_sim = len(param_val)
 
-for i, res in enumerate(pool.imap(parallel_run, param_val)):
-    results.append(res)
-    print(f'\rRunning ... {(i+1) / n_sim:.1%}', end='', flush=True)
+with h5py.File(Path(filename).with_suffix('.hdf5'), 'w') as f:
+    for i, res in enumerate(pool.imap(parallel_run, param_val)):
+        dipsy.utils.hdf5_add_dict(f, i, res)
+        print(f'\rRunning ... {(i+1) / n_sim:.1%}', end='', flush=True)
 
 print('\r--------- DONE ---------')
 
 sims_done = walltime.time()
 print('{} of {} simulations finished in {:.3g} minutes'.format(len(results) - results.count(False), len(results), (sims_done - start) / 60))
-
-# %% ------------ output --------------
-
-# to write to an hdf5 file, we need to put everything simulation result + parameters into one dict
-
-dicts = [res._asdict() for res in results]
-del(results)
-
-for d, params in zip(dicts, param_val):
-    d['params'] = params
-
-# now write to file
-
-dipsy.utils.write_to_hdf5(Path(filename).with_suffix('.hdf5'), dicts)
-
-saving_done = walltime.time()
-print(f'saving done (took {(saving_done - sims_done) / 60:.3g} min)')
