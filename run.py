@@ -69,6 +69,8 @@ n_sim = len(param_val)
 
 with h5py.File(Path(filename).with_suffix('.hdf5'), 'w') as f:
     for i, res in enumerate(pool.imap(parallel_run, param_val)):
+        res = res._asdict()
+        res['params'] = param_val[i]
         dipsy.utils.hdf5_add_dict(f, i, res)
         print(f'\rRunning ... {(i+1) / n_sim:.1%}', end='', flush=True)
 
