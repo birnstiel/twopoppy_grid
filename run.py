@@ -72,6 +72,7 @@ with h5py.File(Path(filename).with_suffix('.hdf5'), 'w') as f:
         res = res._asdict()
         res['params'] = param_val[i]
         dipsy.utils.hdf5_add_dict(f, i, res)
+        del res
         print(f'\rRunning ... {(i+1) / n_sim:.1%}', end='', flush=True)
 
 print('\r--------- DONE ---------')
