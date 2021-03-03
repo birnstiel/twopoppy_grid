@@ -1,4 +1,5 @@
 from multiprocessing import Pool
+import warnings
 
 import numpy as np
 import emcee
@@ -39,16 +40,23 @@ def sigma_estimator(r_dust, lams, t, M_star):
 
     return sig_g
 
+# These wrappers are needed such that the functions can be pickeled
+# as fortran functions cannot be pickled but the python wrapper can.
 
-def logp_pwr_wrapper(p, x, y):
-    return dipsy._fortran_module.fmodule.lnp_pwr(p, x, y)
+
+def lnp_pwr1_wrapper(p, x, y):
+    return dipsy._fortran_module.fmodule.lnp_pwr1(p, x, y)
 
 
-def logp_pwr2_wrapper(p, x, y):
+def lnp_pwr2_wrapper(p, x, y):
     return dipsy._fortran_module.fmodule.lnp_pwr2(p, x, y)
 
 
-def fit_pwr(x, y, nthreads=0, n_burnin=50, n_steps=500, n_walker=15, fct_nr=1, **kwargs):
+def lnp_pwr2_logit_wrapper(p, x, y):
+    return dipsy._fortran_module.fmodule.lnp_pwr2_logit(p, x, y)
+
+
+def fit_intensity(x, y, nthreads=0, n_burnin=50, n_steps=500, n_walker=None, fct_nr=1, **kwargs):
     """fit power law
 
     Parameters
@@ -72,7 +80,7 @@ def fit_pwr(x, y, nthreads=0, n_burnin=50, n_steps=500, n_walker=15, fct_nr=1, *
         emcee sampler object
     """
 
-    # we first use only emission outside 1 au which is a roughly
+    # we use only emission outside 1 au which is a roughly
     # realistic best-case beam size
 
     mask = x > 1
@@ -83,29 +91,59 @@ def fit_pwr(x, y, nthreads=0, n_burnin=50, n_steps=500, n_walker=15, fct_nr=1, *
 
     if fct_nr == 1:
         n_dim = 3
+        if n_walker is None:
+            n_walker = 15
 
         #  initial parameters
-        p0 = np.array([
-            y[0] * 10.**(-3 + 6 * np.random.rand(n_walker)),
-            -4 + 8 * np.random.rand(n_walker),
-            -2 + 5 * np.random.rand(n_walker),
-        ]).T
+        def get_p0():
+            return np.array([
+                y[0] * 10.**(-3 + 6 * np.random.rand(n_walker)),
+                -4 + 8 * np.random.rand(n_walker),
+                10.**(1 + 2 * np.random.rand(n_walker)),
+            ]).T
 
-        fct = logp_pwr_wrapper
+        fct = lnp_pwr1_wrapper
     elif fct_nr == 2:
         n_dim = 6
+        if n_walker is None:
+            n_walker = 15
 
         #  initial parameters
-        p0 = np.array([
-            y[0] * 10.**(-3 + 6 * np.random.rand(n_walker)),
-            -4 + 8 * np.random.rand(n_walker),
-            10.**(2.5 * np.random.rand(n_walker)),
-            np.random.rand(n_walker),
-            -4 + 8 * np.random.rand(n_walker),
-            10.**(2.3 * np.random.rand(n_walker)),
-        ]).T
+        def get_p0():
+            return np.array([
+                y[0] * 10.**(-3 + 6 * np.random.rand(n_walker)),
+                -4 + 8 * np.random.rand(n_walker),
+                -4 + 8 * np.random.rand(n_walker),
+                10.**(2 + 2 * np.random.rand(n_walker)),
+                np.random.rand(n_walker),
+                10.**(2 * np.random.rand(n_walker)),
+            ]).T
 
-        fct = logp_pwr2_wrapper
+        fct = lnp_pwr2_wrapper
+    elif fct_nr == 3:
+        n_dim = 7
+        if n_walker is None:
+            n_walker = 40
+
+        #  initial parameters
+        # def get_p0():
+        #     return np.array([
+        #         y[0] * 10.**(-6 + 6 * np.random.rand(n_walker)),
+        #         np.random.rand(n_walker),
+        #         0 + 3 * np.random.rand(n_walker),
+        #         0 + 3 * np.random.rand(n_walker),
+        #         10.**(2 + np.random.rand(n_walker)),
+        #         10.**(2 * np.random.rand(n_walker)),
+        #         10.**(1 + 1.3 * np.random.rand(n_walker)),
+        #     ]).T
+        fct = lnp_pwr2_logit_wrapper
+
+        def get_p0():
+            p0 = guess(x, y, n_walker)
+            lnps = [lnp_pwr2_logit_wrapper(_p, x, y) for _p in p0]
+            p_best = p0[np.argmax(lnps)]
+            return get_valid_walker_cloud(p_best, n_walker, fct, x, y, delta=0.1, threshold=0.05)
+
     else:
         raise NameError('unknown function number')
 
@@ -120,11 +158,17 @@ def fit_pwr(x, y, nthreads=0, n_burnin=50, n_steps=500, n_walker=15, fct_nr=1, *
 
     try:
         # run the burn-in: we take only the best and then pick samples around it
+        logp = -np.inf
 
-        _ = sampler.run_mcmc(p0, n_burnin, **kwargs)
-        i_best = sampler.lnprobability[:, -1].argmax()
-        p_best = sampler.chain[i_best, -1, :]
-        p1 = get_valid_walker_cloud(p_best, n_walker, fct, x, y)
+        while np.isneginf(logp):
+            p0 = get_p0()
+            sampler.reset()
+            _ = sampler.run_mcmc(p0, n_burnin, **kwargs)
+            i_best = sampler.lnprobability[:, -1].argmax()
+            logp = sampler.lnprobability[i_best, -1]
+            p_best = sampler.chain[i_best, -1, :]
+
+        p1 = get_valid_walker_cloud(p_best, n_walker, fct, x, y, delta=0.1, threshold=0.05)
 
         # now we run again with that new cloud of points
 
@@ -139,19 +183,23 @@ def fit_pwr(x, y, nthreads=0, n_burnin=50, n_steps=500, n_walker=15, fct_nr=1, *
     return sampler
 
 
-def get_valid_walker_cloud(p0, n_walkers, fct, *args, delta=0.3, threshold=0.1):
+def get_valid_walker_cloud(p0, n_walkers, fct, *args, delta=0.3, threshold=0.1, n_iter=1000):
 
     logP0 = fct(p0, *args)
 
     def get_p_new(p0, delta):
-        return [p * (1 - delta) + 2 * delta * np.random.rand() for p in p0]
+        return [p * (1 - delta + 2 * delta * np.random.randn()) for p in p0]
 
     result = []
 
     for i in range(n_walkers):
         p_new = get_p_new(p0, delta)
-        while fct(p_new, *args) > threshold * logP0:
+        counter = 0
+        while fct(p_new, *args) < threshold * logP0 and counter < n_iter:
             p_new = get_p_new(p0, delta)
+            counter += 1
+        if counter == n_iter:
+            warnings.warn('exceeded max. number of iterations')
         result.append(p_new)
 
     return result
@@ -213,7 +261,7 @@ def get_dust_line(x, y, nthreads=20, n_steps=2500, **kwargs):
     n_steps : int, optional
         number of iterations, by default 2500
 
-    other keywords are passed to fit_pwr
+    other keywords are passed to fit_intensity
 
     Returns
     -------
@@ -227,14 +275,146 @@ def get_dust_line(x, y, nthreads=20, n_steps=2500, **kwargs):
     ValueError
         if too many sample are discarded
     """
-    sampler = fit_pwr(x, y, nthreads=nthreads, n_steps=n_steps, **kwargs)
+    sampler = fit_intensity(x, y, nthreads=nthreads, n_steps=n_steps, **kwargs)
 
     act = sampler.get_autocorr_time(quiet=True, tol=10)
-    discard = int(2 * act.max())
+    discard = int(2 * np.nanmax(act))
     if discard > 0.5 * sampler.chain.shape[1]:
         raise ValueError('too many samples to discard')
+
+    slice = sampler.lnprobability[:, discard:]
+    idx = np.unravel_index(slice.argmax(), slice.shape)
+    r_best = sampler.chain[:, discard:, -1][idx[0], idx[1]]
 
     r_dust = sampler.chain[:, discard:, -1].mean()
     dr_dust = sampler.chain[:, discard:, -1].std()
 
-    return r_dust, dr_dust, discard, sampler
+    return r_dust, dr_dust, r_best, discard, sampler
+
+
+def findLocalMaximaMinima(arr):
+    """
+    Function to find all the local maxima
+    and minima in the given array arr[]
+    """
+    n = len(arr)
+    # Empty lists to store points of
+    # local maxima and minima
+    mx = []
+    mn = []
+
+    # Checking whether the first point is
+    # local maxima or minima or neither
+    if(arr[0] > arr[1]):
+        mx.append(0)
+    elif(arr[0] < arr[1]):
+        mn.append(0)
+
+    # Iterating over all points to check
+    # local maxima and local minima
+    for i in range(1, n - 1):
+
+        # Condition for local minima
+        if(arr[i - 1] > arr[i] < arr[i + 1]):
+            mn.append(i)
+
+        # Condition for local maxima
+        elif(arr[i - 1] < arr[i] > arr[i + 1]):
+            mx.append(i)
+
+    # Checking whether the last point is
+    # local maxima or minima or neither
+    if(arr[-1] > arr[-2]):
+        mx.append(n - 1)
+    elif(arr[-1] < arr[-2]):
+        mn.append(n - 1)
+
+    return mx, mn
+
+
+def guess(x, y, n, n_smooth=5):
+    """return a list of n guesses for the 7-parameter function.
+
+    Parameters
+    ----------
+    x : array
+        radius in au
+    y : arra
+        intensity on x-grid
+    n : int
+        number of guesses
+    n_smooth : int, optional
+        over how many cells to smooth the exponent, by default 5
+
+    Returns
+    -------
+    array
+        a list of guesses for all 7 parameters
+    """
+    mask = x > 1
+    x = x[mask]
+    y = y[mask]
+
+    # get the exponent and smooth it
+
+    exponent = (x / y)[1:-1] * (y[2:] - y[:-2]) / (x[2:] - x[:-2])
+    x = x[1:-1]
+    y = y[1:-1]
+
+    exponent2 = np.convolve(exponent, np.ones(n_smooth) / n_smooth, mode='same')
+
+    # guess the outer truncation
+
+    # r_out = x[np.where(y<dipsy.fortran.crop)[0][0]]
+    r_out = 0.9 * x[np.where(exponent2 < -10)[0][0]]
+
+    # find the two most common slopes
+
+    bins = np.arange(-5.25, 0.25, 0.5)
+    centers = 0.5 * (bins[:-1] + bins[1:])
+    counts, _ = np.histogram(exponent, bins=bins)
+
+    i = counts.argsort()[::-1]
+    slope1 = centers[i[0]]
+    slope2 = centers[i[1]]
+
+    # find which slope is inner/outer
+
+    inner = exponent[:100].mean()
+
+    if abs(inner - slope1) < abs(inner - slope2):
+        slope_i = slope1
+        slope_o = slope2
+    else:
+        slope_i = slope2
+        slope_o = slope1
+
+    # guesstimate the slope transition
+
+    mask = x < 0.8 * r_out
+    i1 = np.abs(exponent2 - slope_i)[mask].argmin()
+    i2 = np.abs(exponent2 - slope_o)[mask].argmin()
+    r_t = 0.5 * (x[mask][i1] + x[mask][i2])
+
+    # find local minima in the slope
+    # as candidate transition radii
+
+    _, mn = findLocalMaximaMinima(exponent2)
+    mn = np.array(mn)[x[mn] < r_out]
+    r_list = x[mn]
+
+    r_dust = r_list[exponent2[mn].argmin()]
+
+    # construct the list of guesses
+
+    p = np.array([
+        np.interp(r_t, x, y) * np.ones(n),
+        np.random.rand(n),
+        -slope_o * np.ones(n),
+        -slope_i * np.ones(n),
+        r_out * (0.8 + 0.2 * np.random.rand(n)),
+        r_list[np.random.choice(np.arange(len(r_list)), size=n)],
+        r_dust * np.ones(n)
+    ])
+
+    return p.T
