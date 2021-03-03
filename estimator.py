@@ -56,7 +56,7 @@ def lnp_pwr2_logit_wrapper(p, x, y):
     return dipsy._fortran_module.fmodule.lnp_pwr2_logit(p, x, y)
 
 
-def fit_intensity(x, y, nthreads=0, n_burnin=50, n_steps=500, n_walker=None, fct_nr=1, **kwargs):
+def fit_intensity(x, y, n_threads=1, n_burnin=50, n_steps=500, n_walker=None, fct_nr=1, **kwargs):
     """fit power law
 
     Parameters
@@ -65,8 +65,8 @@ def fit_intensity(x, y, nthreads=0, n_burnin=50, n_steps=500, n_walker=None, fct
         x array in units of au
     y : array
         intensity
-    nthreads : int, optional
-        number of threads, by default 0
+    n_threads : int, optional
+        number of threads, by default 1
     n_burnin : int, optional
         number of burn-in steps, by default 50
     n_steps : int, optional
@@ -149,8 +149,8 @@ def fit_intensity(x, y, nthreads=0, n_burnin=50, n_steps=500, n_walker=None, fct
 
     # initialize pool
 
-    if nthreads > 0:
-        pool = Pool(nthreads)
+    if n_threads > 1:
+        pool = Pool(n_threads)
     else:
         pool = None
 
@@ -247,7 +247,7 @@ def get_sigma_area(sampler, fct, x, X=20, f=0.68):
     return y_min, y_max
 
 
-def get_dust_line(x, y, nthreads=20, n_steps=2500, **kwargs):
+def get_dust_line(x, y, n_threads=1, n_steps=2500, **kwargs):
     """determine the dust line for the given simulation
 
     Parameters
@@ -256,8 +256,8 @@ def get_dust_line(x, y, nthreads=20, n_steps=2500, **kwargs):
         x array in au
     y : array
         intensity array
-    nthreads : int, optional
-        number of threads, by default 20
+    n_threads : int, optional
+        number of threads, by default 1
     n_steps : int, optional
         number of iterations, by default 2500
 
@@ -275,7 +275,7 @@ def get_dust_line(x, y, nthreads=20, n_steps=2500, **kwargs):
     ValueError
         if too many sample are discarded
     """
-    sampler = fit_intensity(x, y, nthreads=nthreads, n_steps=n_steps, **kwargs)
+    sampler = fit_intensity(x, y, n_threads=n_threads, n_steps=n_steps, **kwargs)
 
     act = sampler.get_autocorr_time(quiet=True, tol=10)
     discard = int(2 * np.nanmax(act))
@@ -408,7 +408,7 @@ def guess(x, y, n, n_smooth=5):
     # construct the list of guesses
 
     p = np.array([
-        np.interp(r_t, x, y) * np.ones(n),
+        np.interp(r_t, x, y) * 10.**(-1 + 3 * np.ones(n)),
         np.random.rand(n),
         -slope_o * np.ones(n),
         -slope_i * np.ones(n),

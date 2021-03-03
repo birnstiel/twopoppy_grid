@@ -27,7 +27,7 @@ PARSER = argparse.ArgumentParser(description=__doc__, formatter_class=RTHF)
 PARSER.add_argument('file', help='HDF5 file with the simulation data', type=str)
 PARSER.add_argument('-q', '--q', help='size distribution slope', type=float, default=3.5)
 PARSER.add_argument('-f', '--function', help='which function to use', type=int, default=3)
-PARSER.add_argument('-t', '--time', help='simulation time [yr]', type=float, default=1e6)
+PARSER.add_argument('--time', help='simulation time [yr]', type=float, default=1e6)
 PARSER.add_argument('--flux-fraction', help='flux fraction to determine disk radius', type=float, default=0.68)
 PARSER.add_argument('-o', '--opacity', help='which opacity to use', type=str, default='ricci_compact.npz')
 
@@ -50,10 +50,9 @@ def process_args(ARGS):
     q = ARGS.q
     flux_fraction = ARGS.flux_fraction
     time = ARGS.time * year
-    fct_nr = ARGS.fct_nr
     fname_in = ARGS.file
     fname_out = Path(fname_in)
-    fname_out = fname_out.with_name(f'{fname_out.stem }_mass{fname_out.suffix}')
+    fname_out = fname_out.with_name(f'{fname_out.stem }_mass_{ARGS.time:.1e}yr{fname_out.suffix}')
 
     return {
         'time': time,
@@ -62,7 +61,7 @@ def process_args(ARGS):
         'fname_in': fname_in,
         'fname_out': fname_out,
         'opac': opac,
-        'fct_nr': fct_nr
+        'fct_nr': ARGS.function
     }
 
 
