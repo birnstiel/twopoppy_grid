@@ -332,7 +332,7 @@ def findLocalMaximaMinima(arr):
     return mx, mn
 
 
-def guess(x, y, n, n_smooth=5):
+def guess(x, y, n, n_smooth=5, debug=False):
     """return a list of n guesses for the 7-parameter function.
 
     Parameters
@@ -365,8 +365,13 @@ def guess(x, y, n, n_smooth=5):
 
     # guess the outer truncation
 
-    # r_out = x[np.where(y<dipsy.fortran.crop)[0][0]]
-    r_out = 0.9 * x[np.where(exponent2 < -10)[0][0]]
+    try:
+        r_out = x[np.where(exponent2 < -20)[0][0]]
+    except IndexError:
+        try:
+            r_out = x[np.where(y < dipsy.fortran.crop)[0][0]]
+        except IndexError:
+            r_out = x[y.argmin()]
 
     # find the two most common slopes
 
@@ -400,7 +405,7 @@ def guess(x, y, n, n_smooth=5):
     # as candidate transition radii
 
     _, mn = findLocalMaximaMinima(exponent2)
-    mn = np.array(mn)[x[mn] < r_out]
+    mn = np.array(mn)[x[mn] < 0.8 * r_out]
     r_list = x[mn]
 
     r_dust = r_list[exponent2[mn].argmin()]
@@ -412,9 +417,21 @@ def guess(x, y, n, n_smooth=5):
         np.random.rand(n),
         -slope_o * np.ones(n),
         -slope_i * np.ones(n),
-        r_out * (0.8 + 0.2 * np.random.rand(n)),
+        r_out * (0.8 + 0.1 * np.random.rand(n)),
         r_list[np.random.choice(np.arange(len(r_list)), size=n)],
         r_dust * np.ones(n)
     ])
 
-    return p.T
+    if debug:
+        return p.T, {
+            'x': x,
+            'exponent2': exponent2,
+            'r_t': r_t,
+            'r_out': r_out,
+            'r_dust': r_dust,
+            'r_list': r_list,
+            'x': x,
+            'y': y,
+        }
+    else:
+        return p.T
