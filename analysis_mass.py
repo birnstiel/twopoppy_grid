@@ -1,12 +1,7 @@
 """
-Analyze a simulation from the grid to get data for
-the Size-Luminosity-Relation (SLR), that is:
-
-- the input parameters alpha, Mdisk, r_c, v_frag, M_star
-- characteristic radius for all snapshots
-- flux for all snapshots
-- snapshot times
-
+Analyze the grid simulations to derive the emission
+profiles for a given time and then the mass applying 
+the Powell method
 """
 import argparse
 from pathlib import Path

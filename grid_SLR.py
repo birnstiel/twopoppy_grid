@@ -1,12 +1,11 @@
-import numpy as np
 from pathlib import Path
+import numpy as np
 
 import dipsy
 
 # local imports need to be imported in a special way
 model = dipsy.utils.remote_import(Path(__file__).absolute().parent / 'model.py')
 run_bump_model2 = model.run_bump_model2
-
 
 au = dipsy.cgs_constants.au
 year = dipsy.cgs_constants.year
@@ -15,7 +14,7 @@ sigma_sb = dipsy.cgs_constants.sigma_sb
 
 r0 = 0.05 * au
 r1 = 2000. * au
-nr = 200
+nr = 400
 
 t0 = 1e4 * year
 t1 = 1e7 * year
@@ -27,15 +26,15 @@ r_bumps = [1 / 3, 2 / 3]
 a_bumps = [0, 0]
 gap_profile = None  # 'kanagawa' or None
 
-alpha = [1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2]
-Md = np.logspace(np.log10(1e-3), np.log10(0.2), 6)
-Rc = [30, 60, 100, 130, 160, 200]
-v_frag = [100, 300, 600, 1000, 1500, 2000]
-M_star = np.logspace(np.log10(0.2), np.log10(2), 6)
+alpha = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
+Md = np.logspace(np.log10(1e-3), np.log10(0.2), 10)
+Rc = [10, 30, 50, 80, 100, 130, 150, 180, 200, 230]
+v_frag = [200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000]
+M_star = np.logspace(np.log10(0.2), np.log10(2), 10)
 mass_ratio = [3e-4, 1e-3]
 
-cores = 50
-filename = 'dustlines'
+cores = 10
+filename = 'SLR'
 
 # Store them in a list
 param = (alpha, Md, Rc, v_frag, M_star)
