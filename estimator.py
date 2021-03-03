@@ -353,13 +353,15 @@ def guess(x, y, n, n_smooth=5, debug=False):
     """
     mask = x > 1
     x = x[mask]
-    y = y[mask]
+    y = y[mask] + 1e-100
 
-    # get the exponent and smooth it
+    # get the exponent
 
     exponent = (x / y)[1:-1] * (y[2:] - y[:-2]) / (x[2:] - x[:-2])
     x = x[1:-1]
     y = y[1:-1]
+
+    # smooth the exponent
 
     exponent2 = np.convolve(exponent, np.ones(n_smooth) / n_smooth, mode='same')
 
@@ -396,7 +398,7 @@ def guess(x, y, n, n_smooth=5, debug=False):
 
     # guesstimate the slope transition
 
-    mask = x < 0.8 * r_out
+    mask = x < r_out
     i1 = np.abs(exponent2 - slope_i)[mask].argmin()
     i2 = np.abs(exponent2 - slope_o)[mask].argmin()
     r_t = 0.5 * (x[mask][i1] + x[mask][i2])
@@ -405,20 +407,28 @@ def guess(x, y, n, n_smooth=5, debug=False):
     # as candidate transition radii
 
     _, mn = findLocalMaximaMinima(exponent2)
-    mn = np.array(mn)[x[mn] < 0.8 * r_out]
+    mn = np.array(mn)
+    if len(mn) == 0:
+        mn = np.array([exponent2.argmin()])
+    mask2 = x[mn] < 0.8 * r_out
+    if mask2.sum() > 0:
+        mn = mn[mask2]
+    else:
+        r_out = max(r_out, x[mn])
     r_list = x[mn]
 
     r_dust = r_list[exponent2[mn].argmin()]
 
     # construct the list of guesses
+    r_t_array = np.random.choice(np.hstack(([r_t, r_list])), size=n)
 
     p = np.array([
-        np.interp(r_t, x, y) * 10.**(-1 + 3 * np.ones(n)),
+        np.interp(r_t_array, x, y) * 10.**(-1 + 2 * np.ones(n)),
         np.random.rand(n),
         -slope_o * np.ones(n),
         -slope_i * np.ones(n),
-        r_out * (0.8 + 0.1 * np.random.rand(n)),
-        r_list[np.random.choice(np.arange(len(r_list)), size=n)],
+        r_out * (0.9 + 0.2 * np.random.rand(n)),
+        r_t_array,
         r_dust * np.ones(n)
     ])
 
