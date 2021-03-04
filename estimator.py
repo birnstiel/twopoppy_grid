@@ -277,8 +277,12 @@ def get_dust_line(x, y, n_threads=1, n_steps=2500, **kwargs):
     """
     sampler = fit_intensity(x, y, n_threads=n_threads, n_steps=n_steps, **kwargs)
 
-    act = sampler.get_autocorr_time(quiet=True, tol=10)
-    discard = int(2 * np.nanmax(act))
+    act = sampler.get_autocorr_time(quiet=True, tol=10, discard=300)
+    try:
+        discard = int(2 * np.nanmax(act))
+    except ValueError:
+        discard = 300
+
     if discard > 0.5 * sampler.chain.shape[1]:
         raise ValueError('too many samples to discard')
 
@@ -414,7 +418,7 @@ def guess(x, y, n, n_smooth=5, debug=False):
     if mask2.sum() > 0:
         mn = mn[mask2]
     else:
-        r_out = max(r_out, x[mn])
+        r_out = np.hstack((r_out, x[mn])).max()
     r_list = x[mn]
 
     r_dust = r_list[exponent2[mn].argmin()]
