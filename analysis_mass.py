@@ -80,108 +80,112 @@ def parallel_analyze(key, settings=None, debug=False, **kwargs):
     dict
         result dictionary
     """
-    if settings is None:
-        raise ValueError('settings must be given as keyword')
+    try:
+        if settings is None:
+            raise ValueError('settings must be given as keyword')
 
-    # get all settings
-    fname = settings['fname_in']
-    opac = settings['opac']
-    time = settings['time']
-    q = settings['q']
-    fct_nr = settings['fct_nr']
-    flux_fraction = settings['flux_fraction']
+        # get all settings
+        fname = settings['fname_in']
+        opac = settings['opac']
+        time = settings['time']
+        q = settings['q']
+        fct_nr = settings['fct_nr']
+        flux_fraction = settings['flux_fraction']
 
-    # get the data from file and do the processing
+        # get the data from file and do the processing
 
-    sim = dipsy.utils.read_from_hdf5(fname, key)
-    params = sim['params']
-    it = sim['time'].searchsorted(time)
+        sim = dipsy.utils.read_from_hdf5(fname, key)
+        params = sim['params']
+        it = sim['time'].searchsorted(time)
 
-    obs = dipsy.get_observables(
-        sim['r'],
-        sim['sig_g'][it],
-        sim['sig_d'][it],
-        sim['a_max'][it],
-        sim['T'][it],
-        opac,
-        lams,
-        flux_fraction=flux_fraction,
-        q=q
-    )
-
-    # now fit for the dust lines
-
-    dipsy.fortran.crop = 1e-10
-
-    r_dust = []
-    r_best = []
-    discards = []
-    samplers = []
-    xs = []
-    ys = []
-
-    kwargs['progress'] = kwargs.get('progress', False)
-    kwargs['n_steps'] = kwargs.get('n_steps', 1000)
-    kwargs['n_burnin'] = kwargs.get('n_burnin', 100)
-
-    for ilam in np.arange(len(lams)):
-        x = sim['r'] / au
-        y = obs.I_nu[ilam]  # + RMS * np.random.randn(len(x))
-
-        _r_dust, _dr_dust, _r_best, discard, sampler = estimator.get_dust_line(
-            x, y,
-            fct_nr=fct_nr,
-            **kwargs
+        obs = dipsy.get_observables(
+            sim['r'],
+            sim['sig_g'][it],
+            sim['sig_d'][it],
+            sim['a_max'][it],
+            sim['T'][it],
+            opac,
+            lams,
+            flux_fraction=flux_fraction,
+            q=q
         )
 
-        # slice = sampler.lnprobability[:, discard:]
-        # idx = np.unravel_index(slice.argmax(), slice.shape)
-        # ln_best = slice[idx[0], idx[1]]
-        # p_best = sampler.chain[:, discard:, :][idx[0], idx[1], :]
+        # now fit for the dust lines
 
-        r_dust += [_r_dust]
-        r_best += [_r_best]
-        discards += [discard]
-        samplers += [sampler]
-        xs += [x]
-        ys += [y]
+        dipsy.fortran.crop = 1e-10
 
-    # now given the r_dust, apply powel method to get surface density
+        r_dust = []
+        r_best = []
+        discards = []
+        samplers = []
+        xs = []
+        ys = []
 
-    M_star = sim['M_star']
-    sig_g = estimator.sigma_estimator(r_dust, lams, time, M_star)
+        kwargs['progress'] = kwargs.get('progress', False)
+        kwargs['n_steps'] = kwargs.get('n_steps', 1000)
+        kwargs['n_burnin'] = kwargs.get('n_burnin', 100)
 
-    # now estimate the disk mass from those few surface densities
+        for ilam in np.arange(len(lams)):
+            x = sim['r'] / au
+            y = obs.I_nu[ilam]  # + RMS * np.random.randn(len(x))
 
-    r_dust_s = np.array(r_dust)
-    sig_g = np.array(sig_g)
-    idx = r_dust_s.argsort()
-    M_d_est = np.trapz(
-        2 * np.pi * r_dust_s[idx] * au * sig_g[idx],
-        x=r_dust_s[idx] * au)
+            _r_dust, _dr_dust, _r_best, discard, sampler = estimator.get_dust_line(
+                x, y,
+                fct_nr=fct_nr,
+                **kwargs
+            )
 
-    M_d = np.trapz(2 * np.pi * sim['r'] * sim['sig_g'][it], x=sim['r'])
+            # slice = sampler.lnprobability[:, discard:]
+            # idx = np.unravel_index(slice.argmax(), slice.shape)
+            # ln_best = slice[idx[0], idx[1]]
+            # p_best = sampler.chain[:, discard:, :][idx[0], idx[1], :]
 
-    # store the relevant results in a dict
+            r_dust += [_r_dust]
+            r_best += [_r_best]
+            discards += [discard]
+            samplers += [sampler]
+            xs += [x]
+            ys += [y]
 
-    out = {
-        'alpha': params[0],
-        'Mdisk': params[1],
-        'r_c': params[2],
-        'v_frag': params[3],
-        'M_star': params[4],
-        'r_dust': r_best,
-        'sig_g': sig_g,
-        'M_est': M_d_est,
-        'M_gas': M_d
-    }
+        # now given the r_dust, apply powel method to get surface density
 
-    if debug:
-        out['x'] = xs
-        out['y'] = ys
-        out['obs'] = obs
-        out['sim'] = sim
-        out['samplers'] = samplers
-        out['discards'] = discards
+        M_star = sim['M_star']
+        sig_g = estimator.sigma_estimator(r_dust, lams, time, M_star)
 
-    return out
+        # now estimate the disk mass from those few surface densities
+
+        r_dust_s = np.array(r_dust)
+        sig_g = np.array(sig_g)
+        idx = r_dust_s.argsort()
+        M_d_est = np.trapz(
+            2 * np.pi * r_dust_s[idx] * au * sig_g[idx],
+            x=r_dust_s[idx] * au)
+
+        M_d = np.trapz(2 * np.pi * sim['r'] * sim['sig_g'][it], x=sim['r'])
+
+        # store the relevant results in a dict
+
+        out = {
+            'alpha': params[0],
+            'Mdisk': params[1],
+            'r_c': params[2],
+            'v_frag': params[3],
+            'M_star': params[4],
+            'r_dust': r_best,
+            'sig_g': sig_g,
+            'M_est': M_d_est,
+            'M_gas': M_d
+        }
+
+        if debug:
+            out['x'] = xs
+            out['y'] = ys
+            out['obs'] = obs
+            out['sim'] = sim
+            out['samplers'] = samplers
+            out['discards'] = discards
+
+        return out
+    except Exception as err:
+        print(err)
+        return False
