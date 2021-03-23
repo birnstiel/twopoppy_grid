@@ -205,7 +205,7 @@ def get_valid_walker_cloud(p0, n_walkers, fct, *args, delta=0.3, threshold=0.1, 
     return result
 
 
-def get_sigma_area(sampler, fct, x, X=20, f=0.68):
+def get_sigma_area(sampler, fct, x, X=20, f=0.68, return_y=False):
     """get all samples from the last X iterations and flatten, then sort
 
      Parameters
@@ -224,6 +224,8 @@ def get_sigma_area(sampler, fct, x, X=20, f=0.68):
      -------
      y_min, y_max : arrays
          returns the minimum and maximum values
+         if `return_y==True`, then also return
+         all y arrays.
      """
 
     lastP = sampler.chain[:, -X:, :]
@@ -239,12 +241,17 @@ def get_sigma_area(sampler, fct, x, X=20, f=0.68):
     y_max = -np.inf * np.ones_like(x)
     y_min = np.inf * np.ones_like(x)
 
+    y_array = []
     for p in sortP[:n_sigma]:
         _y = fct(x, *p)
         y_max = np.maximum(y_max, _y)
         y_min = np.minimum(y_min, _y)
+        y_array += [_y]
 
-    return y_min, y_max
+    if return_y:
+        return y_min, y_max, y_array
+    else:
+        return y_min, y_max
 
 
 def get_dust_line(x, y, n_threads=1, n_steps=2500, **kwargs):
@@ -449,3 +456,30 @@ def guess(x, y, n, n_smooth=5, debug=False):
         }
     else:
         return p.T
+
+
+def fit_lbp(x, y, n_walker=20, n_dim=3, **kwargs):
+    """Fit Lynden-Bell & Pringle profile to x and y.
+
+    returns p_best, sampler, mass
+    """
+
+    sampler = emcee.EnsembleSampler(n_walker, n_dim, dipsy.fortran.lnp_lbp, args=[x, y])
+
+    p0 = np.array([
+        10**(-4 + 8 * np.random.rand(n_walker)),
+        10**(0 + 3 * np.random.rand(n_walker)) * au,
+        -5 + 10 * np.random.rand(n_walker),
+    ]).T
+
+    sampler.run_mcmc(p0, 5000)
+
+    idx_best = np.unravel_index(sampler.lnprobability.argmax(), sampler.lnprobability.shape)
+    p_best = sampler.chain[idx_best[0], idx_best[1]]
+
+    x_best = np.logspace(-1, 3, 200) * au
+    y_best = dipsy.fortran.lbp_profile(p_best, x_best)
+
+    mass = np.trapz(2 * np.pi * x_best * y_best, x=x_best)
+
+    return p_best, sampler, mass
