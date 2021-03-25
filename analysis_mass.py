@@ -1,6 +1,6 @@
 """
 Analyze the grid simulations to derive the emission
-profiles for a given time and then the mass applying 
+profiles for a given time and then the mass applying
 the Powell method
 """
 import argparse
@@ -152,7 +152,7 @@ def parallel_analyze(key, settings=None, debug=False, **kwargs):
         M_star = sim['M_star']
         sig_g = estimator.sigma_estimator(r_dust, lams, time, M_star)
 
-        # now estimate the disk mass from those few surface densities
+        # FIRST APPROACH: estimate the disk mass from those few surface densities
 
         r_dust_s = np.array(r_dust)
         sig_g = np.array(sig_g)
@@ -163,6 +163,9 @@ def parallel_analyze(key, settings=None, debug=False, **kwargs):
 
         M_d = np.trapz(2 * np.pi * sim['r'] * sim['sig_g'][it], x=sim['r'])
 
+        # SECOND APPROACH: fit a LBP profile and integrate that.
+
+        p_best, M_lbp, masses, sampler_lbp = estimator.fit_lbp(r_dust_s[idx] * au, sig_g[idx])
         # store the relevant results in a dict
 
         out = {
@@ -174,15 +177,24 @@ def parallel_analyze(key, settings=None, debug=False, **kwargs):
             'r_dust': r_best,
             'sig_g': sig_g,
             'M_est': M_d_est,
-            'M_gas': M_d
+            'M_gas': M_d,
+            'M_lbp': M_lbp,
+            'M_lbp_med': np.median(masses),
+            'N_lbp': p_best[0],
+            'rc_lbp': p_best[1],
+            'p_lbp': p_best[2],
         }
 
         if debug:
+            sig_lbp = dipsy.fortran.lbp_profile(p_best, sim['r'])
+
             out['x'] = xs
             out['y'] = ys
             out['obs'] = obs
             out['sim'] = sim
             out['samplers'] = samplers
+            out['sampler_lbp'] = sampler_lbp
+            out['sig_lbp'] = sig_lbp
             out['discards'] = discards
 
         return out
