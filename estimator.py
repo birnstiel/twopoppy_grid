@@ -458,7 +458,7 @@ def guess(x, y, n, n_smooth=5, debug=False):
         return p.T
 
 
-def fit_lbp(x, y, n_walker=20, n_dim=3, **kwargs):
+def fit_lbp(x, y, n_walker=20, n_dim=3, n_steps=4000, n_burnin=1000, **kwargs):
     """Fit Lynden-Bell & Pringle profile to x and y.
 
     returns p_best, sampler, mass
@@ -472,14 +472,38 @@ def fit_lbp(x, y, n_walker=20, n_dim=3, **kwargs):
         -5 + 10 * np.random.rand(n_walker),
     ]).T
 
-    sampler.run_mcmc(p0, 5000)
+    # run the burn-in and take the best of the last 10 steps
+    # as template, then restart from nearby points to narrow it down
 
-    idx_best = np.unravel_index(sampler.lnprobability.argmax(), sampler.lnprobability.shape)
+    n_last = 10
+    _ = sampler.run_mcmc(p0, n_burnin, **kwargs)
+    subset = sampler.lnprobability[:, -n_last:]
+    i_best, j_best = np.unravel_index(subset.argmax(), subset.shape)
+    p_best = sampler.chain[:, -n_last:][i_best, j_best, :]
+
+    p1 = get_valid_walker_cloud(p_best, n_walker, dipsy.fortran.lnp_lbp, x, y, delta=0.1, threshold=0.05)
+
+    # now we run again with that new cloud of points
+
+    sampler.reset()
+    sampler.run_mcmc(p1, n_steps, **kwargs)
+
+    idx_best = np.unravel_index(
+        sampler.lnprobability.argmax(),
+        sampler.lnprobability.shape)
     p_best = sampler.chain[idx_best[0], idx_best[1]]
+
+    # now we get the best fit and the distribution of
+    # derived masses
 
     x_best = np.logspace(-1, 3, 200) * au
     y_best = dipsy.fortran.lbp_profile(p_best, x_best)
-
     mass = np.trapz(2 * np.pi * x_best * y_best, x=x_best)
 
-    return p_best, sampler, mass
+    def wrapper(x, *args):
+        return dipsy.fortran.lbp_profile(args, x)
+
+    _, _, y_array = get_sigma_area(sampler, wrapper, x_best, X=100, return_y=True)
+    masses = np.array([np.trapz(2 * np.pi * x_best * y, x=x_best) for y in y_array])
+
+    return p_best, mass, masses, sampler
