@@ -16,7 +16,7 @@ k_b = dipsy.cgs_constants.k_B
 G = dipsy.cgs_constants.Grav
 
 
-def sigma_estimator(r_dust, lams, t, M_star):
+def sigma_estimator(r_dust, lams, t, M_star, gamma=2.75):
 
     L_star, R_star, T_star = dipsy.tracks.get_stellar_properties(M_star, t)
 
@@ -24,6 +24,7 @@ def sigma_estimator(r_dust, lams, t, M_star):
     rho_s = 1.2
 
     sig_g = []
+    sig_d = []
 
     for r_d, lam in zip(r_dust, lams):
         r_d *= au
@@ -36,16 +37,17 @@ def sigma_estimator(r_dust, lams, t, M_star):
         vk = np.sqrt(G * M_star / r_d)
         v0 = cs**2 / (2 * vk)
 
-        sig_g += [t * v0 * rho_s * lam / r_d]
+        sig_g += [gamma / 2. * t * v0 * rho_s * lam / r_d]
+        sig_d += [lam * rho_s * gamma * v0 / vk]
 
-    return sig_g
+    return sig_g, sig_d
 
 # These wrappers are needed such that the functions can be pickeled
 # as fortran functions cannot be pickled but the python wrapper can.
 
 
 def lnp_pwr1_wrapper(p, x, y):
-    return dipsy._fortran_module.fmodule.lnp_pwr1(p, x, y)
+    return dipsy._fortran_module.fmodule.lnp_pwr(p, x, y)
 
 
 def lnp_pwr2_wrapper(p, x, y):
@@ -447,10 +449,10 @@ def guess(x, y, n, n_smooth=5, debug=False):
         return p.T, {
             'x': x,
             'exponent2': exponent2,
-            'r_t': r_t,
+            'r_t': np.array(r_t),
             'r_out': r_out,
-            'r_dust': r_dust,
-            'r_list': r_list,
+            'r_dust': np.array(r_dust),
+            'r_list': np.array(r_list),
             'x': x,
             'y': y,
         }
