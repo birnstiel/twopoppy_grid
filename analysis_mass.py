@@ -52,7 +52,7 @@ def process_args(ARGS):
     time = ARGS.time * year
     fname_in = ARGS.file
     fname_out = Path(fname_in)
-    fname_out = fname_out.with_name(f'{fname_out.stem }_mass_{ARGS.time:.1e}yr{fname_out.suffix}')
+    fname_out = fname_out.with_name(f'{fname_out.stem }_mass_{ARGS.time:.1e}yr_f{ARGS.function}{fname_out.suffix}')
 
     return {
         'time': time,
