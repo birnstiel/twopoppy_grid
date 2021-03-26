@@ -150,22 +150,34 @@ def parallel_analyze(key, settings=None, debug=False, **kwargs):
         # now given the r_dust, apply powel method to get surface density
 
         M_star = sim['M_star']
-        sig_g = estimator.sigma_estimator(r_dust, lams, time, M_star)
+        sig_g, sig_d = estimator.sigma_estimator(r_dust, lams, time, M_star)
 
         # FIRST APPROACH: estimate the disk mass from those few surface densities
 
-        r_dust_s = np.array(r_dust)
+        r_dust = np.array(r_dust)
         sig_g = np.array(sig_g)
-        idx = r_dust_s.argsort()
-        M_d_est = np.trapz(
-            2 * np.pi * r_dust_s[idx] * au * sig_g[idx],
-            x=r_dust_s[idx] * au)
+        sig_d = np.array(sig_d)
 
-        M_d = np.trapz(2 * np.pi * sim['r'] * sim['sig_g'][it], x=sim['r'])
+        idx = r_dust.argsort()
+
+        M_g_est = np.trapz(
+            2 * np.pi * r_dust[idx] * au * sig_g[idx],
+            x=r_dust[idx] * au)
+
+        M_d_est = np.trapz(
+            2 * np.pi * r_dust[idx] * au * sig_d[idx],
+            x=r_dust[idx] * au)
+
+        M_dust = np.trapz(2 * np.pi * sim['r'] * sim['sig_d'][it], x=sim['r'])
+        M_gas = np.trapz(2 * np.pi * sim['r'] * sim['sig_g'][it], x=sim['r'])
 
         # SECOND APPROACH: fit a LBP profile and integrate that.
 
-        p_best, M_lbp, masses, sampler_lbp = estimator.fit_lbp(r_dust_s[idx] * au, sig_g[idx])
+        p_gas, M_g_lbp, masses_g, sampler_g = estimator.fit_lbp(
+            r_dust[idx] * au, sig_g[idx])
+
+        p_dust, M_d_lbp, masses_d, sampler_d = estimator.fit_lbp(
+            r_dust[idx] * au, sig_d[idx])
         # store the relevant results in a dict
 
         out = {
@@ -176,25 +188,38 @@ def parallel_analyze(key, settings=None, debug=False, **kwargs):
             'M_star': params[4],
             'r_dust': r_best,
             'sig_g': sig_g,
-            'M_est': M_d_est,
-            'M_gas': M_d,
-            'M_lbp': M_lbp,
-            'M_lbp_med': np.median(masses),
-            'N_lbp': p_best[0],
-            'rc_lbp': p_best[1],
-            'p_lbp': p_best[2],
+            'sig_d': sig_d,
+            'M_g_est': M_g_est,
+            'M_d_est': M_d_est,
+            'M_gas': M_gas,
+            'M_dust': M_dust,
+            'M_g_lbp': M_g_lbp,
+            'M_d_lbp': M_d_lbp,
+            'M_g_med': np.median(masses_g),
+            'M_d_med': np.median(masses_d),
+            'N_g': p_gas[0],
+            'rc_g': p_gas[1],
+            'p_g': p_gas[2],
+            'N_d': p_dust[0],
+            'rc_d': p_dust[1],
+            'p_d': p_dust[2],
         }
 
         if debug:
-            sig_lbp = dipsy.fortran.lbp_profile(p_best, sim['r'])
+            sig_g_lbp = dipsy.fortran.lbp_profile(p_gas, sim['r'])
+            sig_d_lbp = dipsy.fortran.lbp_profile(p_dust, sim['r'])
 
             out['x'] = xs
             out['y'] = ys
             out['obs'] = obs
             out['sim'] = sim
             out['samplers'] = samplers
-            out['sampler_lbp'] = sampler_lbp
-            out['sig_lbp'] = sig_lbp
+            out['sampler_g'] = sampler_g
+            out['sampler_d'] = sampler_d
+            out['sig_g_lbp'] = sig_g_lbp
+            out['sig_d_lbp'] = sig_d_lbp
+            out['masses_g'] = masses_g
+            out['masses_d'] = masses_d
             out['discards'] = discards
 
         return out
