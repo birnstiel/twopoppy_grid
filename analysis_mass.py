@@ -11,7 +11,7 @@ import numpy as np
 import dipsy
 year = dipsy.cgs_constants.year
 
-lams = np.array([0.087, 0.1, 0.13, 0.8])
+_lams = np.array([0.087, 0.1, 0.13, 0.3])
 
 # local imports need to be imported in a special way
 
@@ -30,6 +30,7 @@ PARSER.add_argument('-f', '--function', help='which function to use', type=int, 
 PARSER.add_argument('--time', help='simulation time [yr]', type=float, default=1e6)
 PARSER.add_argument('--flux-fraction', help='flux fraction to determine disk radius', type=float, default=0.68)
 PARSER.add_argument('-o', '--opacity', help='which opacity to use', type=str, default='ricci_compact.npz')
+PARSER.add_argument('-l', '--lams', help='which wavelengths to use [cm]', type=float, nargs='+' ,default=list(_lams))
 
 
 def process_args(ARGS):
@@ -49,6 +50,7 @@ def process_args(ARGS):
 
     q = ARGS.q
     flux_fraction = ARGS.flux_fraction
+    lams = np.array(ARGS.lams)
     time = ARGS.time * year
     fname_in = ARGS.file
     fname_out = Path(fname_in)
@@ -58,6 +60,7 @@ def process_args(ARGS):
         'time': time,
         'q': q,
         'flux_fraction': flux_fraction,
+        'lams': lams,
         'fname_in': fname_in,
         'fname_out': fname_out,
         'opac': opac,
@@ -91,6 +94,7 @@ def parallel_analyze(key, settings=None, debug=False, **kwargs):
         q = settings['q']
         fct_nr = settings['fct_nr']
         flux_fraction = settings['flux_fraction']
+        lams = settings['lams']
 
         # get the data from file and do the processing
 
@@ -189,6 +193,7 @@ def parallel_analyze(key, settings=None, debug=False, **kwargs):
             'r_dust': r_best,
             'sig_g': sig_g,
             'sig_d': sig_d,
+            'lams': lams,
             'M_g_est': M_g_est,
             'M_d_est': M_d_est,
             'M_gas': M_gas,
