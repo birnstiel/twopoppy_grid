@@ -29,6 +29,7 @@ PARSER = argparse.ArgumentParser(description=__doc__, formatter_class=RTHF)
 PARSER.add_argument('file', help='HDF5 file with the simulation data', type=str)
 PARSER.add_argument('-l', '--lam', help='wavelength in cm', type=float, default=0.085)
 PARSER.add_argument('-q', '--q', help='size distribution slope', type=float, default=3.5)
+PARSER.add_argument('--no-scattering', dest='scattering', help='turn off scattering', default=True, action='store_false')
 PARSER.add_argument('--flux-fraction', help='flux fraction to determine disk radius', type=float, default=0.68)
 PARSER.add_argument('-o', '--opacity', help='which opacity to use', type=str, default='ricci_compact.npz')
 
@@ -50,10 +51,11 @@ def process_args(ARGS):
 
     lam = ARGS.lam
     q = ARGS.q
+    scattering = ARGS.scattering
     flux_fraction = ARGS.flux_fraction
     fname_in = ARGS.file
     fname_out = Path(fname_in)
-    fname_out = fname_out.with_name(f'{fname_out.stem }_analysis_lam{1e4 * lam:0.0f}_q{q:.1f}_f{100 * flux_fraction:.0f}{fname_out.suffix}')
+    fname_out = fname_out.with_name(f'{fname_out.stem }_analysis_lam{1e4 * lam:0.0f}_q{q:.1f}_f{100 * flux_fraction:.0f}_s{int(scattering)}{fname_out.suffix}')
 
     return {
         'lam': lam,
@@ -62,6 +64,7 @@ def process_args(ARGS):
         'fname_in': fname_in,
         'fname_out': fname_out,
         'opac': opac,
+        'scattering': scattering,
     }
 
 
@@ -88,6 +91,7 @@ def parallel_analyze(key, settings=None):
     opac = settings['opac']
     lam = settings['lam']
     q = settings['q']
+    scattering = settings['scattering']
     flux_fraction = settings['flux_fraction']
 
     # get the data from file and do the processing
@@ -97,7 +101,7 @@ def parallel_analyze(key, settings=None):
         b = bumpmodel_result(*[group[f][()] for f in bumpmodel_result._fields])
         params = group['params'][()]
 
-    rf_t, flux_t, *_ = dipsy.get_all_observables(b, opac, lam, q=q, flux_fraction=flux_fraction)
+    rf_t, flux_t, *_ = dipsy.get_all_observables(b, opac, lam, q=q, flux_fraction=flux_fraction, scattering=scattering)
 
     # store the relevant results in a dict
 
