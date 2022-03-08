@@ -28,6 +28,7 @@ RTHF = argparse.RawTextHelpFormatter
 PARSER = argparse.ArgumentParser(description=__doc__, formatter_class=RTHF)
 PARSER.add_argument('file', help='HDF5 file with the simulation data', type=str)
 PARSER.add_argument('-l', '--lam', help='wavelength in cm', type=float, default=0.085)
+PARSER.add_argument('-l2', '--lam2', help='second wavelength for alpha in cm', type=float, default=0.3)
 PARSER.add_argument('-q', '--q', help='size distribution slope', type=float, default=3.5)
 PARSER.add_argument('--no-scattering', dest='scattering', help='turn off scattering', default=True, action='store_false')
 PARSER.add_argument('--flux-fraction', help='flux fraction to determine disk radius', type=float, default=0.68)
@@ -50,6 +51,7 @@ def process_args(ARGS):
     opac = dipsy.Opacity(input=ARGS.opacity)
 
     lam = ARGS.lam
+    lam2 = ARGS.lam2
     q = ARGS.q
     scattering = ARGS.scattering
     flux_fraction = ARGS.flux_fraction
@@ -59,6 +61,7 @@ def process_args(ARGS):
 
     return {
         'lam': lam,
+        'lam2': lam2,
         'q': q,
         'flux_fraction': flux_fraction,
         'fname_in': fname_in,
@@ -90,6 +93,7 @@ def parallel_analyze(key, settings=None):
     fname = settings['fname_in']
     opac = settings['opac']
     lam = settings['lam']
+    lam2 = settings['lam2']
     q = settings['q']
     scattering = settings['scattering']
     flux_fraction = settings['flux_fraction']
@@ -101,7 +105,9 @@ def parallel_analyze(key, settings=None):
         b = bumpmodel_result(*[group[f][()] for f in bumpmodel_result._fields])
         params = group['params'][()]
 
-    rf_t, flux_t, *_ = dipsy.get_all_observables(b, opac, lam, q=q, flux_fraction=flux_fraction, scattering=scattering)
+    rf_t, flux_t, *_ = dipsy.get_all_observables(b, opac, [lam, lam2], q=q, flux_fraction=flux_fraction, scattering=scattering)
+
+    alpha_mm = - np.log(flux_t[:, 1] / flux_t[:, 0]) / np.log(lam2 / lam) - 2.0
 
     # store the relevant results in a dict
 
@@ -111,8 +117,9 @@ def parallel_analyze(key, settings=None):
         'r_c': params[2],
         'v_frag': params[3],
         'M_star': params[4],
-        'rf_t': np.squeeze(rf_t / au).tolist(),
+        'rf_t': np.squeeze(rf_t[0] / au).tolist(),
         'flux_t': np.squeeze(flux_t).tolist(),
+        'alpha_mm': alpha_mm,
         'time': b.time
     }
 
