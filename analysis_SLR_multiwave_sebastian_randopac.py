@@ -237,6 +237,8 @@ def create_snapshot_file(hdf_file, t0=100_000, t1=3e6):
     t0 *= year
     t1 *= year
 
+    hdf_file = Path(hdf_file)
+
     with h5py.File(hdf_file) as fi:
         keys = list(fi.keys())
         time = fi[keys[0]]['time'][()]
