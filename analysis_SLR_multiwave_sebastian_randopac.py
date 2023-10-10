@@ -17,8 +17,6 @@ import pandas as pd
 
 import dipsy
 
-import random
-
 year = dipsy.cgs_constants.year
 au = dipsy.cgs_constants.au
 
@@ -178,8 +176,13 @@ def parallel_analyze(key, settings=None):
     # pick a random snapshot
 
     # time_snap = 1.*10**(random.uniform(5,6+np.log10(3)))
-    t_snap = random.uniform(1e5, 3e6)
-    i_snap = b.time.searchsorted(t_snap * year)
+    # t_snap = random.uniform(1e5, 3e6)
+    # i_snap = b.time.searchsorted(t_snap * year)
+
+    # try to read in the file with the simulation<->snapshot index association
+    fname = Path(fname)
+    snapshot_indices = pd.read_parquet(fname.with_name(fname.stem + '_times.parquet'))
+    i_snap = int(snapshot_indices[snapshot_indices.key == key].it)
 
     r0 = 0.05 * au
     r1 = 2000. * au
@@ -192,7 +195,6 @@ def parallel_analyze(key, settings=None):
 
     out = {
         'N_substr': N_substr,
-        'simulation': 0,
         'L': b.L,
         # 'alpha': params[0],
         'Mdisk': params[1] * params[4],  # now Mdisk is simply in M_sun units
@@ -226,3 +228,27 @@ def parallel_analyze(key, settings=None):
     }
 
     return out
+
+
+def create_snapshot_file(hdf_file, t0=100_000, t1=3e6):
+    """for a simulation hdf5 file, create a parquet file with a random snapshot index
+    between t0 and t1 (in years).
+    """
+    t0 *= year
+    t1 *= year
+
+    with h5py.File(hdf_file) as fi:
+        keys = list(fi.keys())
+        time = fi[keys[0]]['time'][()]
+
+    rand = np.random.default_rng()
+
+    # draw random uniform times between t0 and t1
+    t_rand = t0 + (t1 - t0) * rand.random(len(keys))
+
+    # pick the time index and store key + index in a new table
+    it_rand = np.abs(time[:, None] - t_rand[None, :]).argmin(0)
+    table = pd.DataFrame({'key': keys, 'it': it_rand})
+
+    # Store the table
+    table.to_parquet(hdf_file.with_name(hdf_file.stem + '_times.parquet'))
