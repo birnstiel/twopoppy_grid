@@ -41,6 +41,7 @@ PARSER.add_argument('-l6', '--lam6', help='sixth wavelength for alpha in cm', ty
 PARSER.add_argument('-l7', '--lam7', help='sixth wavelength for alpha in cm', type=float, default=0.81024989)
 PARSER.add_argument('-l8', '--lam8', help='sixth wavelength for alpha in cm', type=float, default=0.99930819)
 PARSER.add_argument('-q', '--q', help='size distribution slope', type=float, default=3.5)
+PARSER.add_argument('-qd', '--qd', help='size distribution slope in the drift limit, if none, uses value of q', type=float, default=None)
 PARSER.add_argument('--no-scattering', dest='scattering', help='turn off scattering', default=True, action='store_false')
 PARSER.add_argument('--flux-fraction', help='flux fraction to determine disk radius', type=float, default=0.68)
 PARSER.add_argument('-o', '--opacity', help='opacity file or keyword', type=str, default='ricci_compact.npz')
@@ -69,12 +70,23 @@ def process_args(ARGS):
     lam6 = ARGS.lam6
     lam7 = ARGS.lam7
     lam8 = ARGS.lam8
+
+    # if just q is given, use it for qd as well
     q = ARGS.q
+    qd = ARGS.qd
+    if qd is None:
+        qd = q
+        q_string = f'{q:0.1f}'
+    else:
+        q_string = f'{q:0.1f}_{qd:0.1f}'
+    # then convert to array
+    q = [q, qd]
+
     scattering = ARGS.scattering
     flux_fraction = ARGS.flux_fraction
     fname_in = ARGS.file
     fname_out = Path(fname_in)
-    fname_out = fname_out.with_name(f'{fname_out.stem }_analysis_8wave_lam{1e4 * lam:0.0f}_q{q:.1f}_f{100 * flux_fraction:.0f}_s{int(scattering)}{fname_out.suffix}')
+    fname_out = fname_out.with_name(f'{fname_out.stem }_analysis_8wave_lam{1e4 * lam:0.0f}_q{q_string}_f{100 * flux_fraction:.0f}_s{int(scattering)}{fname_out.suffix}')
 
     return {
         'lam': lam,
