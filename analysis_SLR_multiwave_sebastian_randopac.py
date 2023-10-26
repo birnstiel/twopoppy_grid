@@ -156,6 +156,11 @@ def parallel_analyze(key, settings=None):
 
     opacity = get_random_opac_file(opac)
 
+    # try to read in the file with the simulation<->snapshot index association
+    fname = Path(fname)
+    snapshot_indices = pd.read_parquet(fname.with_name(fname.stem + '_times.parquet'))
+    i_snap = int(snapshot_indices[snapshot_indices.key == key].it)
+
     # get the data from file and do the processing
 
     with h5py.File(fname, 'r') as fid:
@@ -163,7 +168,17 @@ def parallel_analyze(key, settings=None):
         b = bumpmodel_result(*[group[f][()] for f in bumpmodel_result._fields])
         params = group['params'][()]
     lambdas = np.array([lam, lam2, lam3, lam4, lam5, lam6, lam7, lam8])
-    rf_t, flux_t, *_ = dipsy.get_all_observables(b, opacity, lambdas, q=q, flux_fraction=flux_fraction, scattering=scattering)
+
+    # compute the q array for the selected snapshot
+
+    q_f, q_d = q * np.ones(2)
+    q_array = np.where(b.a_max[i_snap, :] > np.minimum(b.a_fr[i_snap, :], b.a_df[i_snap, :]), q_f, q_d)
+
+    # compute the observables for the selected snapshot
+    # rf_t, flux_t, *_ = dipsy.get_all_observables(b, opacity, lambdas, q=q, flux_fraction=flux_fraction, scattering=scattering)
+    obs = dipsy.get_observables(b.r, b.sig_g[i_snap], b.sig_d[i_snap], b.a_max[i_snap], b.T[i_snap], opacity, lambdas, q=q_array,
+                                scattering=scattering, flux_fraction=flux_fraction)
+
     # alpha_mm = np.log(flux_t[:,4] / flux_t[:,2]) / np.log(lam3 / lam5)
 
     if len(params) > 7 and len(params) < 9:
@@ -194,11 +209,6 @@ def parallel_analyze(key, settings=None):
     # t_snap = random.uniform(1e5, 3e6)
     # i_snap = b.time.searchsorted(t_snap * year)
 
-    # try to read in the file with the simulation<->snapshot index association
-    fname = Path(fname)
-    snapshot_indices = pd.read_parquet(fname.with_name(fname.stem + '_times.parquet'))
-    i_snap = int(snapshot_indices[snapshot_indices.key == key].it)
-
     r0 = 0.05 * au
     r1 = 2000. * au
     nr = 400
@@ -211,10 +221,10 @@ def parallel_analyze(key, settings=None):
     out = {
         'N_substr': N_substr,
         'L': b.L,
-        #'alpha': params[0], #not useful for sebastian
+        # 'alpha': params[0], #not useful for sebastian
         'Mdisk': params[1] * params[4],  # now Mdisk is simply in M_sun units
         'r_c': params[2],
-        #'v_frag': params[3], #not useful for sebastian
+        # 'v_frag': params[3], #not useful for sebastian
         'M_star': params[4],
         'rp1': rp1,
         'mp1': mp1,
@@ -222,22 +232,22 @@ def parallel_analyze(key, settings=None):
         'mp2': mp2,
         'd2g': d2g,
         'filename': opacity._filename,
-        f'flux_t({1e1 * lam :0.2f}mm)': flux_t[i_snap, 0],
-        f'flux_t({1e1 * lam2:0.2f}mm)': flux_t[i_snap, 1],
-        f'flux_t({1e1 * lam3:0.2f}mm)': flux_t[i_snap, 2],
-        f'flux_t({1e1 * lam4:0.2f}mm)': flux_t[i_snap, 3],
-        f'flux_t({1e1 * lam5:0.2f}mm)': flux_t[i_snap, 4],
-        f'flux_t({1e1 * lam6:0.2f}mm)': flux_t[i_snap, 5],
-        f'flux_t({1e1 * lam7:0.2f}mm)': flux_t[i_snap, 6],
-        f'flux_t({1e1 * lam8:0.2f}mm)': flux_t[i_snap, 7],
-        f'rf_t({1e1 * lam :0.2f}mm)': rf_t[i_snap, 0] / au,
-        f'rf_t({1e1 * lam2:0.2f}mm)': rf_t[i_snap, 1] / au,
-        f'rf_t({1e1 * lam3:0.2f}mm)': rf_t[i_snap, 2] / au,
-        f'rf_t({1e1 * lam4:0.2f}mm)': rf_t[i_snap, 3] / au,
-        f'rf_t({1e1 * lam5:0.2f}mm)': rf_t[i_snap, 4] / au,
-        f'rf_t({1e1 * lam6:0.2f}mm)': rf_t[i_snap, 5] / au,
-        f'rf_t({1e1 * lam7:0.2f}mm)': rf_t[i_snap, 6] / au,
-        f'rf_t({1e1 * lam8:0.2f}mm)': rf_t[i_snap, 7] / au,
+        f'flux_t({1e1 * lam :0.2f}mm)': obs.flux_t[0],
+        f'flux_t({1e1 * lam2:0.2f}mm)': obs.flux_t[1],
+        f'flux_t({1e1 * lam3:0.2f}mm)': obs.flux_t[2],
+        f'flux_t({1e1 * lam4:0.2f}mm)': obs.flux_t[3],
+        f'flux_t({1e1 * lam5:0.2f}mm)': obs.flux_t[4],
+        f'flux_t({1e1 * lam6:0.2f}mm)': obs.flux_t[5],
+        f'flux_t({1e1 * lam7:0.2f}mm)': obs.flux_t[6],
+        f'flux_t({1e1 * lam8:0.2f}mm)': obs.flux_t[7],
+        f'rf_t({1e1 * lam :0.2f}mm)': obs.rf[0] / au,
+        f'rf_t({1e1 * lam2:0.2f}mm)': obs.rf[1] / au,
+        f'rf_t({1e1 * lam3:0.2f}mm)': obs.rf[2] / au,
+        f'rf_t({1e1 * lam4:0.2f}mm)': obs.rf[3] / au,
+        f'rf_t({1e1 * lam5:0.2f}mm)': obs.rf[4] / au,
+        f'rf_t({1e1 * lam6:0.2f}mm)': obs.rf[5] / au,
+        f'rf_t({1e1 * lam7:0.2f}mm)': obs.rf[6] / au,
+        f'rf_t({1e1 * lam8:0.2f}mm)': obs.rf[7] / au,
         'time': b.time[i_snap] / (1.e6 * year),
         'M_dust': M_dust,
         'M_gas': M_gas,
