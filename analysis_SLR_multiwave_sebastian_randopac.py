@@ -166,24 +166,27 @@ def parallel_analyze(key, settings=None):
     rf_t, flux_t, *_ = dipsy.get_all_observables(b, opacity, lambdas, q=q, flux_fraction=flux_fraction, scattering=scattering)
     # alpha_mm = np.log(flux_t[:,4] / flux_t[:,2]) / np.log(lam3 / lam5)
 
-    if len(params) > 6 and len(params) < 8:
+    if len(params) > 7 and len(params) < 9:
         rp1 = params[5]  # 1 planet case
         mp1 = params[6]  # 1 planet case
         rp2 = 0.
         mp2 = 0.
         N_substr = 1
-    elif len(params) > 7:
+        d2g = params[7]
+    elif len(params) > 8:
         rp1 = params[5]  # 1 planet case
         mp1 = params[7]  # 1 planet case
         rp2 = params[6]  # 2 planets case
         mp2 = params[8]  # 2 planets case
         N_substr = 2
+        d2g = params[9]
     else:
         rp1 = 0.
         mp1 = 0.
         rp2 = 0.
         mp2 = 0.
         N_substr = 0
+        d2g = params[5]
 
     # pick a random snapshot
 
@@ -208,15 +211,16 @@ def parallel_analyze(key, settings=None):
     out = {
         'N_substr': N_substr,
         'L': b.L,
-        # 'alpha': params[0],
+        #'alpha': params[0], #not useful for sebastian
         'Mdisk': params[1] * params[4],  # now Mdisk is simply in M_sun units
         'r_c': params[2],
-        # 'v_frag': params[3],
+        #'v_frag': params[3], #not useful for sebastian
         'M_star': params[4],
         'rp1': rp1,
         'mp1': mp1,
         'rp2': rp2,
         'mp2': mp2,
+        'd2g': d2g,
         'filename': opacity._filename,
         f'flux_t({1e1 * lam :0.2f}mm)': flux_t[i_snap, 0],
         f'flux_t({1e1 * lam2:0.2f}mm)': flux_t[i_snap, 1],
